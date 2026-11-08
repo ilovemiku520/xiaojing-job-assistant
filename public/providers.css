@@ -1,0 +1,87 @@
+/* 1124px canvas = 300px section label + 20px gutter + 804px settings sheet. */
+#providers {
+  --provider-muted: #526561;
+}
+body[data-view="providers"] main > header .eyebrow { display: none; }
+body[data-view="providers"] footer,
+body[data-view="providers"] .aside-bottom,
+body[data-view="providers"] .aside-note,
+body[data-view="providers"] #running:not(.on) { color: #526561; }
+
+.provider-section {
+  display: grid;
+  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+  padding: 20px 0;
+}
+
+.provider-section + .provider-section {
+  border-top: 1px solid var(--line);
+}
+
+.provider-section-intro h2 { margin: 4px 0 6px; }
+.provider-note { color: var(--provider-muted); margin: 0 0 12px; font-size: 14px; }
+.provider-route-count { font-size: 14px; margin: 14px 0 0; color: #14564d; }
+.provider-sheet { min-width: 0; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+
+.provider-route-row,
+.provider-route-captions {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(125px, 1fr) minmax(100px, 1fr) minmax(100px, .65fr) 64px;
+  gap: 8px;
+  align-items: center;
+}
+
+.provider-route-captions { font-size: 13px; color: var(--provider-muted); padding: 0 0 8px; }
+.provider-route-row { padding: 10px 0; border-top: 1px solid #edf0ee; }
+.provider-route-row h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.provider-route-field { min-width: 0; }
+.provider-route-field > span { display: none; }
+.provider-route-current { display: block; color: var(--provider-muted); font-size: 12px; overflow-wrap: anywhere; }
+.provider-edited .provider-route-current { color: #14564d; }
+#providers input,
+#providers select { min-width: 0; min-height: 40px; font-size: 14px; padding: 6px 8px; background: #fff; }
+.provider-route-row input,
+.provider-route-row select { margin: 0; }
+.provider-route-row input:disabled,
+.provider-route-row select:disabled { color: var(--provider-muted); background: #f5f7f6; }
+.provider-route-row input:disabled::placeholder { color: var(--provider-muted); }
+#providers button { margin: 0; min-height: 40px; padding: 6px 10px; font-size: 14px; }
+#providers button:disabled { cursor: not-allowed; opacity: .72; }
+#providers button:focus-visible { outline: 2px solid #087363; outline-offset: 2px; }
+#providers .provider-primary { color: #fff; background: var(--ink); border-color: var(--ink); }
+
+.provider-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 12px; }
+.provider-inline-feedback { margin: 0; font-size: 13px; color: #14564d; overflow-wrap: anywhere; }
+.provider-inline-feedback:empty { display: none; }
+.provider-route-row .provider-inline-feedback { grid-column: 2 / -1; }
+.provider-error { color: #a34130; overflow-wrap: anywhere; }
+.provider-credential-form { display: grid; gap: 16px; }
+.provider-credential-form .provider-actions { margin-top: 0; }
+.provider-field { min-width: 0; font-size: 14px; }
+.provider-credential-status { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; margin: 14px 0 0; font-size: 13px; }
+.provider-credential-status dd { margin: 0; color: var(--provider-muted); text-align: right; }
+.provider-credential-status .provider-ready { color: #14564d; }
+
+@media (max-width: 1220px) {
+  .provider-section { grid-template-columns: 1fr; gap: 12px; }
+  .provider-section-intro { min-width: 0; }
+  .provider-credential-status { max-width: 440px; }
+}
+
+@media (max-width: 830px) {
+  .provider-route-captions { display: none; }
+  .provider-route-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .provider-route-title, .provider-route-row .provider-inline-feedback { grid-column: 1 / -1; }
+  .provider-route-field > span { display: block; margin-bottom: 4px; color: var(--provider-muted); }
+  .provider-route-row > button { align-self: end; justify-self: start; }
+  .provider-route-row:first-of-type { border-top: 0; }
+}
+
+@media (max-width: 700px) {
+  body[data-view="providers"] main { padding-inline: 16px; }
+  .provider-sheet { padding: 12px; }
+  .provider-section { padding: 16px 0; }
+  #providers button { min-height: 44px; }
+}

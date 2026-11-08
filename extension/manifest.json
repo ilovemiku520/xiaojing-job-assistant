@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "BOSS 求职助手 · DeepSeek",
+  "version": "0.13.3",
+  "description": "在已登录的 BOSS 直聘页面筛选岗位、代拟和发送求职消息。密钥保存在本机服务。",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.zhipin.com/*",
+    "http://127.0.0.1:17321/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.zhipin.com/*"
+      ],
+      "js": [
+        "position-link.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.zhipin.com/*"
+      ],
+      "js": [
+        "realtime.js",
+        "resume-ui.js",
+        "favorites.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

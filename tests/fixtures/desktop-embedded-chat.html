@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>小鲸发送验证 · 模拟 BOSS 聊天</title>
+<style>
+  body { margin: 18px; font: 14px/1.5 sans-serif; }
+  main { display: grid; grid-template-columns: 200px 1fr; gap: 18px; }
+  .friend-content { padding: 8px; cursor: pointer; }
+  .friend-content.selected { background: #dbece5; }
+  .title-box { display: flex; gap: 8px; }
+  .chat-record { min-height: 100px; }
+  .message-item { padding: 6px; }
+  #chat-input { border: 1px solid #94a5a0; min-height: 40px; }
+  .btn-send.disabled { opacity: .5; }
+</style>
+<main>
+  <div class="friend-list"></div>
+  <section class="chat-conversation">
+    <h2 class="top-info-content"></h2>
+    <div class="chat-position-content">
+      <span class="position-name">游戏策划实习</span>
+      <span class="city">北京</span>
+    </div>
+    <div class="chat-record"></div>
+    <div class="chat-editor">
+      <div id="chat-input" contenteditable="true"></div>
+      <button type="button" class="btn-send disabled">发送</button>
+    </div>
+  </section>
+</main>
+<script>
+  const peers = {
+    exact: {name:'测试甲', company:'虚构游戏甲'},
+    moved: {name:'测试乙', company:'虚构游戏乙'},
+    silent: {name:'测试丙', company:'虚构游戏丙'},
+    altered: {name:'测试丁', company:'虚构游戏丁'}
+  };
+  const history = Object.fromEntries(Object.keys(peers).map(id => [id,[
+    {id:id+'-hr-initial',role:'hr',text:'简历已经收到，会再反馈。'},
+    {id:id+'-self-initial',role:'self',text:'好的，谢谢。'}
+  ]]));
+  const contacts = document.querySelector('.friend-list');
+  const record = document.querySelector('.chat-record');
+  const editor = document.querySelector('#chat-input');
+  const send = document.querySelector('.btn-send');
+  let selected = 'moved';
+  window.fixture = {clicks:[], switches:0, peers};
+
+  for (const [id,peer] of Object.entries(peers)) {
+    const row = document.createElement('div');
+    row.id = id;
+    row.className = 'friend-content';
+    row.innerHTML = '<div class="title-box"><span class="name-text"></span><span></span></div>';
+    row.querySelector('.name-text').textContent = peer.name;
+    row.querySelector('.title-box span:last-child').textContent = peer.company;
+    row.onclick = () => {
+      selected = id;
+      editor.textContent = '';
+      send.classList.add('disabled');
+      render();
+    };
+    contacts.append(row);
+  }
+
+  function render() {
+    for (const row of contacts.children) row.classList.toggle('selected',row.id===selected);
+    document.querySelector('.top-info-content').textContent = peers[selected].name+' '+peers[selected].company;
+    record.replaceChildren();
+    for (const item of history[selected]) {
+      const bubble = document.createElement('div');
+      bubble.dataset.mid = item.id;
+      bubble.className = 'message-item '+(item.role==='hr'?'item-friend':'item-myself');
+      const body = document.createElement('span');
+      body.className = 'message-text';
+      body.textContent = item.text;
+      bubble.append(body);
+      if (item.role==='self') {
+        const status = document.createElement('span');
+        status.className = 'message-status status-delivery';
+        status.textContent = '20:30 送达';
+        bubble.prepend(status);
+      }
+      record.append(bubble);
+    }
+  }
+
+  editor.oninput = () => {
+    send.classList.toggle('disabled',!editor.textContent.trim());
+    if (selected==='moved' && editor.textContent.trim()) {
+      window.fixture.switches++;
+      document.getElementById('exact').click();
+    }
+  };
+  send.onclick = () => {
+    if (send.classList.contains('disabled')) return;
+    const text = editor.textContent;
+    const id = 'fixture-new-mid-'+selected;
+    window.fixture.clicks.push({peer:selected,text,id});
+    if (selected!=='silent') {
+      history[selected].push({id,role:'self',text:text+(selected==='altered'?' 这是额外文字。':'')});
+    }
+    editor.textContent = '';
+    send.classList.add('disabled');
+    render();
+  };
+  render();
+</script>

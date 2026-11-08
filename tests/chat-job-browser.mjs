@@ -1,0 +1,28 @@
+// Isolated visible-DOM fixture only; never contacts an actual recruiter.
+import {createRequire} from 'node:module';
+import {mkdtempSync,readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import assert from 'node:assert/strict';
+import {createApplication} from '../server/app.mjs';
+import {testPort} from './port.mjs';
+const {chromium}=createRequire(import.meta.url)('../tools/node/node_modules/playwright');
+const description='岗位职责：参与游戏系统、战斗与关卡设计，制作原型，记录测试结果。任职要求：2027届本科生，有玩法分析与策划文档经验，熟悉数据分析优先。';
+let calls=0;const port=await testPort(),app=createApplication({port,local:mkdtempSync(join(tmpdir(),'chat-job-browser-')),key:'fixture',inference:async(c,k,ctx)=>{calls++;assert.equal(ctx.kind,'reply');assert.equal(ctx.job.description,description);assert.equal(ctx.memory.job_detail.status,'read');return {action:'hold',text:'',reason:'只验证职位读取，不发送',score:90};}});
+await new Promise(r=>app.server.listen(port,'127.0.0.1',r));const base=`http://127.0.0.1:${port}`,session=await(await fetch(base+'/api/session')).json();
+const api=async(p,d,owner=true)=>{const r=await fetch(base+p,{method:d?'POST':'GET',headers:{'Content-Type':'application/json','X-Boss-Token':owner?session.token:session.extensionToken},...(d?{body:JSON.stringify(d)}:{})});const v=await r.json();if(!r.ok)throw Error(v.error);return v;};
+const browser=await chromium.launch({headless:true,channel:'msedge'});
+try{
+ await api('/api/config',{mode:'review',autoBrowse:false,learningEnabled:false,browserCalibrated:true,limits:{hoursStart:0,hoursEnd:24},profile:{name:'测试主人',facts:'2027届本科生',titles:['游戏策划'],cities:['杭州']}});await api('/api/run',{running:true});
+ const readJob=requestId=>api('/api/owner-chat',{kind:'read',requestId,instruction:'读取聊天顶部对应的职位要求',targets:[{name:'刘女士',company:'测试网易游戏'}]});
+ await readJob('read-first-job');
+ const html=`<!doctype html><meta charset="utf-8"><body><div class="friend-content selected"><div class="title-box"><span class="name-text">刘女士</span><span>测试网易游戏</span></div></div><div class="chat-conversation"><div class="top-info-content">刘女士 测试网易游戏 HR</div><div class="chat-position-content"><span class="position-name">游戏系统/战斗/关卡策划实习生</span><span class="salary">200-250元/天</span><span class="city">杭州</span><div class="right-content"><span id="view">查看职位</span></div></div><div class="chat-record"><div class="message-item item-myself" data-mid="old-self">您好，想了解实习机会。</div></div><div class="chat-editor"><div contenteditable="true" id="chat-input"></div><button class="btn-send">发送</button></div></div><script>window.opens=0;window.sends=0;window.wrong=false;document.querySelector('.btn-send').onclick=()=>sends++;document.querySelector('#view').onclick=()=>{opens++;const el=document.createElement('div');el.className='dialog-wrap';el.setAttribute('role','dialog');el.innerHTML='<button class="dialog-close">关闭</button><div class="job-detail"><h1>'+ (wrong?'完全无关的销售职位':document.querySelector('.position-name').textContent)+'</h1><div class="company-name">测试网易游戏</div><div class="job-sec-text">${description}</div></div>';document.body.append(el);el.querySelector('button').onclick=()=>el.remove();};</script></body>`;
+ const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('https://www.zhipin.com/**',r=>r.fulfill({contentType:'text/html',body:html}));
+ await page.exposeFunction('fixtureApi',async m=>m.type==='chatMonitor'?{ok:true,result:{monitor:true}}:m.type==='api'?{ok:true,result:await api(m.path,m.data,false)}:{ok:true,result:null});await page.addInitScript(()=>{const fixtureValues={};window.chrome={storage:{local:{get:async key=>({[key]:fixtureValues[key]}),set:async patch=>Object.assign(fixtureValues,patch)}},runtime:{id:'fixture',sendMessage:m=>window.fixtureApi(m)}};});await page.goto('https://www.zhipin.com/web/geek/chat');await page.addScriptTag({content:['realtime.js','resume-ui.js','content.js'].map(name=>readFileSync(new URL('../extension/'+name,import.meta.url),'utf8')).join('\n')});
+ const wait=async predicate=>{for(let i=0;i<180&&!predicate();i++)await page.waitForTimeout(100);assert(predicate());};
+ await wait(()=>app.state.ownerChats[0]?.status==='done');const c=Object.values(app.state.memories)[0];assert.equal(c.jobDetail.status,'read');assert.equal(c.job.description,description);assert.equal(c.job.salary,'200-250元/天');assert.equal(calls,0);assert.equal(await page.locator('[role=dialog]').count(),0,'自动读取后关闭自己打开的弹层');
+ await page.waitForTimeout(6500);assert.equal(await page.evaluate(()=>opens),1,'缓存避免每次打开岗位');
+ await page.evaluate(()=>{const m=document.createElement('div');m.className='message-item item-friend';m.dataset.mid='new-hr';m.textContent='你看过职位要求了吗？';document.querySelector('.chat-record').append(m);});await wait(()=>calls===1);assert.equal(c.job.description,description,'后续只上传顶部信息不擦掉已读正文');assert.equal(app.state.tasks.filter(t=>t.kind==='greeting').length,0);
+ await page.evaluate(()=>{wrong=true;document.querySelector('.position-name').textContent='游戏数值策划校招';});await readJob('read-changed-job');await wait(()=>c.jobDetail?.status==='unavailable');assert.equal(c.job.description,undefined,'换岗位后不使用之前JD');assert.equal(c.jobHistory[0].job.description,description);assert.equal(await page.evaluate(()=>sends),0);assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({chatHeaderEntryRead:true,fullJDInReply:true,cachedWithoutReopening:true,oldJDArchived:true,wrongPositionRejected:true,greetingsCreated:0,HRMessagesSent:0}));
+}finally{await browser.close();await new Promise(r=>{app.server.close(r);app.server.closeAllConnections();});}

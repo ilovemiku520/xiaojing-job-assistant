@@ -1,0 +1,32 @@
+// Synthetic browser only: no real Edge, BOSS account, or recruiter traffic.
+import {createRequire} from 'node:module';
+import {mkdtempSync,readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import assert from 'node:assert/strict';
+import {createApplication} from '../server/app.mjs';
+import {testPort} from './port.mjs';
+const {chromium}=createRequire(import.meta.url)('../tools/node/node_modules/playwright');
+let calls=0;const port=await testPort(),app=createApplication({port,local:mkdtempSync(join(tmpdir(),'whale-owner-browser-')),key:'fixture',inference:async(c,k,context)=>{calls++;assert.equal(context.kind,'followup');assert.equal(context.messages.at(-1).role,'self');assert(context.memory.observed_history.length>=2);return {action:'send_text',text:'你好，我是DeepSeek小鲸，帮主人跟进之前沟通过的岗位，想问一下目前筛选进度如何？',reason:'已读取真实历史后追问',score:90};}});
+await new Promise(r=>app.server.listen(port,'127.0.0.1',r));const base=`http://127.0.0.1:${port}`,session=await(await fetch(base+'/api/session')).json();
+const api=async(path,data,owner=true)=>{const r=await fetch(base+path,{method:data?'POST':'GET',headers:{'Content-Type':'application/json','X-Boss-Token':owner?session.token:session.extensionToken},...(data?{body:JSON.stringify(data)}:{})});const v=await r.json();if(!r.ok)throw Error(v.error);return v;};
+const browser=await chromium.launch({headless:true,channel:'msedge'});
+try{
+ await api('/api/config',{mode:'auto',browserCalibrated:true,learningEnabled:false,limits:{hoursStart:0,hoursEnd:24},profile:{name:'测试主人',facts:'2027届本科生',titles:['游戏策划'],cities:['北京']}});
+ assert.equal(app.state.config.running,false);const targets=['甲','乙','丙'].map(x=>({name:x+'女士',company:'测试游戏'+x}));const {plan}=await api('/api/owner-chat',{requestId:'three-fixture',kind:'followup',instruction:'询问三位HR既有求职进度',targets});
+ const html=`<!doctype html><html><meta charset="utf-8"><body><div class="friend-list">${targets.map((t,i)=>`<div id="p${i}" class="friend-content ${i?'':'selected'}"><div class="title-box"><span class="name-text">${t.name}</span><span>${t.company}</span></div></div>`).join('')}</div><div class="chat-conversation"><div class="top-info-content"></div><div class="chat-position-content"><span class="position-name">游戏策划实习</span><span class="city">北京</span></div><div class="chat-record"></div><div class="chat-editor"><div contenteditable="true" id="chat-input">主人未写完的草稿</div><button class="btn-send disabled">发送</button></div></div><script>
+ window.targets=${JSON.stringify(targets)};window.sent=[];window.messages=targets.map((t,i)=>[{id:i+'-hr',role:'hr',text:'请发一下简历'},{id:i+'-self',role:'self',text:'已经发送附件简历'}]);
+ window.render=()=>{const i=Number(document.querySelector('.friend-content.selected').id.slice(1)),t=targets[i];document.querySelector('.top-info-content').textContent=t.name+' '+t.company;const root=document.querySelector('.chat-record');root.replaceChildren();for(const m of messages[i]){const n=document.createElement('div');n.className='message-item '+(m.role==='self'?'item-myself':'item-friend');n.dataset.mid=m.id;n.textContent=m.text;root.append(n);}};
+ document.querySelectorAll('.friend-content').forEach(p=>p.onclick=function(){document.querySelectorAll('.friend-content').forEach(x=>x.classList.remove('selected'));this.classList.add('selected');render();});render();
+ const input=document.querySelector('#chat-input'),btn=document.querySelector('button');input.focus();input.oninput=()=>btn.classList.toggle('disabled',!input.textContent.trim());btn.onclick=()=>{if(btn.classList.contains('disabled'))return;const active=document.querySelector('.friend-content.selected'),i=Number(active.id.slice(1));sent.push(i);messages[i].push({id:i+'-sent-new',role:'self',text:'20:30 送达 '+input.textContent});input.textContent='';btn.classList.add('disabled');const clone=active.cloneNode(true);clone.onclick=active.onclick;active.replaceWith(clone);render();};
+ </script></body></html>`;
+ const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('https://www.zhipin.com/**',r=>r.fulfill({contentType:'text/html',body:html}));
+ await page.exposeFunction('fixtureApi',async m=>{if(m.type==='chatMonitor')return {ok:true,result:{monitor:true}};if(['worker','crawlWorker'].includes(m.type))return {ok:true,result:null};if(m.type!=='api')return {ok:true,result:{}};const result=await api(m.path,m.data,false);if(m.path==='/api/complete')app.state.lastAction=0;return {ok:true,result};});
+ await page.addInitScript(()=>{const fixtureValues={};window.chrome={storage:{local:{get:async key=>({[key]:fixtureValues[key]}),set:async patch=>Object.assign(fixtureValues,patch)}},runtime:{id:'fixture',sendMessage:m=>window.fixtureApi(m),onMessage:{addListener:f=>window.extensionWake=f}}};const nativeInterval=window.setInterval;window.setInterval=(fn,ms,...args)=>[1500,6000].includes(ms)?0:nativeInterval(fn,ms,...args);window.MutationObserver=class{observe(){}};});await page.goto('https://www.zhipin.com/web/geek/chat');await page.addScriptTag({content:['realtime.js','resume-ui.js','content.js'].map(name=>readFileSync(new URL('../extension/'+name,import.meta.url),'utf8')).join('\n')});
+ await page.waitForTimeout(2200);assert.equal(calls,0);assert.deepEqual(await page.evaluate(()=>sent),[],'不抢占已有草稿');
+ await page.evaluate(()=>{document.querySelector('#chat-input').textContent='';});
+ for(let i=0;i<40&&app.state.ownerChats[0].status==='queued';i++){await page.evaluate(()=>new Promise(r=>window.extensionWake({type:'assistant-read',command:'tick'},{id:'fixture'},r)));await page.waitForTimeout(100);}
+ assert.equal(app.state.ownerChats[0].status,'done',JSON.stringify(app.state.ownerChats[0]));assert.deepEqual(await page.evaluate(()=>sent),[0,1,2]);assert.equal(calls,3);assert.equal(app.state.config.running,false);assert(app.state.ownerChats[0].targets.every(t=>t.status==='sent'));assert(app.state.tasks.every(t=>t.evidence.includes('sent-new')));
+ await page.waitForTimeout(6500);assert.equal(calls,3);assert.equal(app.state.tasks.length,3);assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({ownerDirectedFollowups:3,lastMessageWasSelf:true,backgroundRemainsPaused:true,existingDraftProtected:true,correctRecipients:true,sidebarRerenderHandled:true,pageTimersDisabled:true,extensionWakeWorks:true,duplicateSends:0,realHRsContacted:0}));
+}finally{await browser.close();await new Promise(r=>{app.server.close(r);app.server.closeAllConnections();});}
