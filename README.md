@@ -10,6 +10,8 @@ Xiaojing is a desktop AI job-search automation platform for BOSS Zhipin. It read
 
 ## Windows 便携版 / Windows portable build
 
+**v1.0.0** 是小鲸的首个正式版。 **v1.0.0** is Xiaojing’s first stable release.
+
 1. 在 [GitHub Releases](https://github.com/ilovemiku520/xiaojing-job-assistant/releases) 下载 Windows x64 便携 ZIP，把整个压缩包解压到单独目录。
 2. 在解压目录双击 `Xiaojing.exe`。保留同目录的 `resources`、运行库和许可证文件。桌面服务使用本机回环地址，默认端口为 `17322`。
 3. 首次打开会创建空白资料库，两个自动运行通道保持关闭。升级时，先退出旧程序，再从新解压目录启动。默认资料目录会继续使用原来的本机资料。
